@@ -3,9 +3,18 @@
 #include "hardware/irq.h"  // interrupts
 #include "hardware/pwm.h"  // pwm 
 #include "hardware/sync.h" // wait for interrupt 
+#include "hardware/gpio.h"
+#include "hardware/adc.h"
+#include "hardware/uart.h"
+#include "pico/binary_info.h"
  
 // Audio PIN is to match some of the design guide shields. 
 #define AUDIO_PIN 28  // you can change this to whatever you like
+#define ADC_NUM 0
+#define ADC_PIN (26 + ADC_NUM)
+#define ADC_VREF 3.3
+#define ADC_RANGE (1 << 12)
+#define ADC_CONVERT (ADC_VREF / (ADC_RANGE - 1))
 
 /* 
  * This include brings in static arrays which contain audio samples. 
@@ -41,6 +50,12 @@ int main(void) {
      * multiple of typical audio sampling rates.
      */
     stdio_init_all();
+    printf("Beep boop, listening...\n");
+
+    adc_init();
+    adc_gpio_init( ADC_PIN);
+    adc_select_input( ADC_NUM);
+
     set_sys_clock_khz(176000, true); 
     gpio_set_function(AUDIO_PIN, GPIO_FUNC_PWM);
 
@@ -72,7 +87,17 @@ int main(void) {
 
     pwm_set_gpio_level(AUDIO_PIN, 0);
 
+    uint adc_raw;
+
     while(1) {
+
+        for (int i = 0; i < WAV_DATA_LENGTH; i++) {
+            adc_raw = adc_read() >> 4; // raw voltage from ADC
+            WAV_DATA[i] = adc_raw;
+            sleep_us(90.1);
+        }
+
+        sleep_ms(10);
         __wfi(); // Wait for Interrupt
     }
 }
