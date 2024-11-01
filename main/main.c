@@ -7,6 +7,7 @@
 #include "hardware/adc.h"
 #include "hardware/uart.h"
 #include "pico/binary_info.h"
+#include "hardware/clocks.h"
  
 // Audio PIN is to match some of the design guide shields. 
 #define AUDIO_PIN 28  // you can change this to whatever you like
