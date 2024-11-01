@@ -16,13 +16,13 @@
 #define ADC_RANGE (1 << 12)
 #define ADC_CONVERT (ADC_VREF / (ADC_RANGE - 1))
 
+const int BTN_PIN = 15;
+
 /* 
  * This include brings in static arrays which contain audio samples. 
  * if you want to know how to make these please see the python code
  * for converting audio samples into static arrays. 
  */
-#include "sample.h"
-int wav_position = 0;
 
 /*
  * PWM Interrupt Handler which outputs PWM level and advances the 
@@ -32,25 +32,16 @@ int wav_position = 0;
  * adjust by factor of 8   (this is what bitshifting <<3 is doing)
  * 
  */
-void pwm_interrupt_handler() {
-    pwm_clear_irq(pwm_gpio_to_slice_num(AUDIO_PIN));    
-    if (wav_position < (WAV_DATA_LENGTH<<3) - 1) { 
-        // set pwm level 
-        // allow the pwm value to repeat for 8 cycles this is >>3 
-        pwm_set_gpio_level(AUDIO_PIN, WAV_DATA[wav_position>>3]);  
-        wav_position++;
-    } else {
-        // reset to start
-        wav_position = 0;
-    }
-}
 
 int main(void) {
     /* Overclocking for fun but then also so the system clock is a 
      * multiple of typical audio sampling rates.
      */
     stdio_init_all();
-    printf("Beep boop, listening...\n");
+
+    gpio_init(BTN_PIN);
+    gpio_set_dir(BTN_PIN, GPIO_IN);
+    gpio_pull_up(BTN_PIN);
 
     adc_init();
     adc_gpio_init( ADC_PIN);
@@ -64,9 +55,6 @@ int main(void) {
     // Setup PWM interrupt to fire when PWM cycle is complete
     pwm_clear_irq(audio_pin_slice);
     pwm_set_irq_enabled(audio_pin_slice, true);
-    // set the handle function above
-    irq_set_exclusive_handler(PWM_IRQ_WRAP, pwm_interrupt_handler); 
-    irq_set_enabled(PWM_IRQ_WRAP, true);
 
     // Setup PWM for audio output
     pwm_config config = pwm_get_default_config();
@@ -87,17 +75,18 @@ int main(void) {
 
     pwm_set_gpio_level(AUDIO_PIN, 0);
 
-    uint adc_raw;
+    uint16_t adc_raw;
 
     while(1) {
+        if (!gpio_get(BTN_PIN)) {
+            adc_raw = adc_read();
 
-        for (int i = 0; i < WAV_DATA_LENGTH; i++) {
-            adc_raw = adc_read() >> 4; // raw voltage from ADC
-            WAV_DATA[i] = adc_raw;
-            sleep_us(90.1);
+            pwm_set_gpio_level(AUDIO_PIN, adc_raw);
+        } else {
+            pwm_set_gpio_level(AUDIO_PIN, 0);
         }
 
-        sleep_ms(10);
-        __wfi(); // Wait for Interrupt
+        sleep_us(90.1);
+
     }
 }
